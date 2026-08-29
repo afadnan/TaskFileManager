@@ -20,12 +20,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-
+import com.example.taskfilemanager.ui.files.FilesScreen
+import com.afadnan.taskfilemanager.ui.home.HomeScreen
 import com.afadnan.taskfilemanager.ui.tasks.TasksScreen
 import com.afadnan.taskfilemanager.viewmodel.TaskViewModel
-import com.example.taskfilemanager.ui.files.FilesScreen
-import com.example.taskfilemanager.ui.home.HomeScreen
 import com.example.taskfilemanager.ui.settings.SettingsScreen
+
+
+/*
+ * =====================================================
+ * APP DESTINATION
+ * =====================================================
+ */
 
 private data class AppDestination(
     val route: String,
@@ -33,28 +39,46 @@ private data class AppDestination(
     val icon: ImageVector
 )
 
+
+/*
+ * =====================================================
+ * BOTTOM NAVIGATION DESTINATIONS
+ * =====================================================
+ */
+
 private val destinations = listOf(
+
     AppDestination(
         route = "home",
         label = "Home",
         icon = Icons.Default.Home
     ),
+
     AppDestination(
         route = "tasks",
         label = "Tasks",
         icon = Icons.Default.Check
     ),
+
     AppDestination(
         route = "files",
         label = "Files",
         icon = Icons.Default.Folder
     ),
+
     AppDestination(
         route = "settings",
         label = "Settings",
         icon = Icons.Default.Settings
     )
 )
+
+
+/*
+ * =====================================================
+ * APP NAVIGATION
+ * =====================================================
+ */
 
 @Composable
 fun AppNavigation(
@@ -64,48 +88,109 @@ fun AppNavigation(
     val navController = rememberNavController()
 
     Scaffold(
+
         bottomBar = {
+
             AppBottomNavigation(
                 navController = navController
             )
         }
+
     ) { innerPadding ->
 
         NavHost(
+
             navController = navController,
+
             startDestination = "home",
+
             modifier = Modifier.padding(innerPadding)
+
         ) {
 
+            /*
+             * -----------------------------------------
+             * HOME
+             * -----------------------------------------
+             */
+
             composable("home") {
-                HomeScreen()
+
+                HomeScreen(
+
+                    viewModel = taskViewModel,
+
+                    onAddTask = {
+
+                        navController.navigate("tasks")
+                    },
+
+                    onOpenFiles = {
+
+                        navController.navigate("files")
+                    }
+                )
             }
 
+
+            /*
+             * -----------------------------------------
+             * TASKS
+             * -----------------------------------------
+             */
+
             composable("tasks") {
+
                 TasksScreen(
                     viewModel = taskViewModel
                 )
             }
 
+
+            /*
+             * -----------------------------------------
+             * FILES
+             * -----------------------------------------
+             */
+
             composable("files") {
+
                 FilesScreen()
             }
 
+
+            /*
+             * -----------------------------------------
+             * SETTINGS
+             * -----------------------------------------
+             */
+
             composable("settings") {
+
                 SettingsScreen()
             }
         }
     }
 }
 
+
+/*
+ * =====================================================
+ * BOTTOM NAVIGATION
+ * =====================================================
+ */
+
 @Composable
 private fun AppBottomNavigation(
     navController: NavHostController
 ) {
 
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val navBackStackEntry by
+    navController.currentBackStackEntryAsState()
 
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentRoute =
+        navBackStackEntry?.destination?.route
+
 
     NavigationBar {
 
@@ -113,30 +198,51 @@ private fun AppBottomNavigation(
 
             NavigationBarItem(
 
-                selected = currentRoute == destination.route,
+                selected =
+                    currentRoute == destination.route,
 
                 onClick = {
 
-                    navController.navigate(destination.route) {
+                    navController.navigate(
+                        destination.route
+                    ) {
 
-                        popUpTo("home") {
+                        /*
+                         * Return to Home when
+                         * navigating between
+                         * top-level destinations.
+                         */
+
+                        popUpTo(
+                            navController.graph.startDestinationId
+                        ) {
+
                             saveState = true
                         }
 
                         launchSingleTop = true
+
                         restoreState = true
                     }
                 },
 
                 icon = {
+
                     Icon(
-                        imageVector = destination.icon,
-                        contentDescription = destination.label
+
+                        imageVector =
+                            destination.icon,
+
+                        contentDescription =
+                            destination.label
                     )
                 },
 
                 label = {
-                    Text(destination.label)
+
+                    Text(
+                        text = destination.label
+                    )
                 }
             )
         }
