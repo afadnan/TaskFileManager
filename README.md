@@ -82,51 +82,57 @@ Files can be organized using different sorting options, including:
 
 The following screenshots demonstrate the implemented application and its major workflows.
 
-### 🏠 Home / Dashboard
+### 🏠 Home 
 
-![Home Screen](screenshots/home.png)
+#### Normal Mode
+![Home Screen](img/13.jpeg)
+
+---
+
+#### Dark Mode
+![Home Screen](img/11.jpeg)
 
 ---
 
 ### 📋 Task Management
 
-![Task Management](screenshots/tasks.png)
+![Task Management](img/tasks.jpeg)
 
 ---
 
 ### 📁 File Manager
 
-![File Manager](screenshots/file-manager.png)
+![File Manager](img/file-manager.jpeg)
 
----
-
-### 📂 Folder Navigation
-
-![Folder Navigation](screenshots/folder-navigation.png)
 
 ---
 
 ### 📋 File Operations
 
-![File Operations](screenshots/file-operations.png)
+![File Operations](img/file-operations.jpeg)
 
 ---
 
 ### ✏️ Rename
 
-![Rename Dialog](screenshots/rename-dialog.png)
+![Rename Dialog](img/rename-dialog.jpeg)
 
 ---
 
-### 🔍 Search & Sorting
+### 🔍 Search 
+![Search and Sorting](img/search-sorting1.jpeg)
 
-![Search and Sorting](screenshots/search-sorting.png)
+---
+
+### Sorting
+![Search and Sorting](img/search-sorting.jpeg)
+
 
 ---
 
 ### ⚙️ Settings
 
-![Settings](screenshots/settings.png)
+![Settings](img/settings.jpeg)
 
 ---
 
