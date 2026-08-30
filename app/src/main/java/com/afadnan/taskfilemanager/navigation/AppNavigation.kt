@@ -20,11 +20,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.afadnan.taskfilemanager.ui.home.HomeScreen
-import com.afadnan.taskfilemanager.ui.tasks.TasksScreen
-import com.afadnan.taskfilemanager.viewmodel.TaskViewModel
-import com.example.taskfilemanager.ui.settings.SettingsScreen
 import com.afadnan.taskfilemanager.ui.files.FilesScreen
+import com.afadnan.taskfilemanager.ui.home.HomeScreen
+import com.afadnan.taskfilemanager.ui.settings.SettingsScreen
+import com.afadnan.taskfilemanager.ui.tasks.TasksScreen
+import com.afadnan.taskfilemanager.viewmodel.FileViewModel
+import com.afadnan.taskfilemanager.viewmodel.TaskViewModel
+import com.afadnan.taskfilemanager.viewmodel.ThemeViewModel
 
 /*
  * =====================================================
@@ -37,7 +39,6 @@ private data class AppDestination(
     val label: String,
     val icon: ImageVector
 )
-
 
 /*
  * =====================================================
@@ -72,7 +73,6 @@ private val destinations = listOf(
     )
 )
 
-
 /*
  * =====================================================
  * APP NAVIGATION
@@ -81,10 +81,13 @@ private val destinations = listOf(
 
 @Composable
 fun AppNavigation(
-    taskViewModel: TaskViewModel
+    taskViewModel: TaskViewModel,
+    fileViewModel: FileViewModel,
+    themeViewModel: ThemeViewModel
 ) {
 
-    val navController = rememberNavController()
+    val navController =
+        rememberNavController()
 
     Scaffold(
 
@@ -103,7 +106,10 @@ fun AppNavigation(
 
             startDestination = "home",
 
-            modifier = Modifier.padding(innerPadding)
+            modifier =
+                Modifier.padding(
+                    innerPadding
+                )
 
         ) {
 
@@ -117,20 +123,24 @@ fun AppNavigation(
 
                 HomeScreen(
 
-                    viewModel = taskViewModel,
+                    viewModel =
+                        taskViewModel,
 
                     onAddTask = {
 
-                        navController.navigate("tasks")
+                        navController.navigate(
+                            "tasks"
+                        )
                     },
 
                     onOpenFiles = {
 
-                        navController.navigate("files")
+                        navController.navigate(
+                            "files"
+                        )
                     }
                 )
             }
-
 
             /*
              * -----------------------------------------
@@ -141,10 +151,10 @@ fun AppNavigation(
             composable("tasks") {
 
                 TasksScreen(
-                    viewModel = taskViewModel
+                    viewModel =
+                        taskViewModel
                 )
             }
-
 
             /*
              * -----------------------------------------
@@ -154,9 +164,11 @@ fun AppNavigation(
 
             composable("files") {
 
-                FilesScreen()
+                FilesScreen(
+                    fileViewModel =
+                        fileViewModel
+                )
             }
-
 
             /*
              * -----------------------------------------
@@ -166,12 +178,17 @@ fun AppNavigation(
 
             composable("settings") {
 
-                SettingsScreen()
+                SettingsScreen(
+                    fileViewModel =
+                        fileViewModel,
+
+                    themeViewModel =
+                        themeViewModel
+                )
             }
         }
     }
 }
-
 
 /*
  * =====================================================
@@ -185,11 +202,13 @@ private fun AppBottomNavigation(
 ) {
 
     val navBackStackEntry by
-    navController.currentBackStackEntryAsState()
+    navController
+        .currentBackStackEntryAsState()
 
     val currentRoute =
-        navBackStackEntry?.destination?.route
-
+        navBackStackEntry
+            ?.destination
+            ?.route
 
     NavigationBar {
 
@@ -198,7 +217,8 @@ private fun AppBottomNavigation(
             NavigationBarItem(
 
                 selected =
-                    currentRoute == destination.route,
+                    currentRoute ==
+                            destination.route,
 
                 onClick = {
 
@@ -206,14 +226,10 @@ private fun AppBottomNavigation(
                         destination.route
                     ) {
 
-                        /*
-                         * Return to Home when
-                         * navigating between
-                         * top-level destinations.
-                         */
-
                         popUpTo(
-                            navController.graph.startDestinationId
+                            navController
+                                .graph
+                                .startDestinationId
                         ) {
 
                             saveState = true
@@ -240,7 +256,8 @@ private fun AppBottomNavigation(
                 label = {
 
                     Text(
-                        text = destination.label
+                        text =
+                            destination.label
                     )
                 }
             )

@@ -1,149 +1,372 @@
 package com.afadnan.taskfilemanager.ui.files
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.afadnan.taskfilemanager.data.storage.FileItem
+import com.afadnan.taskfilemanager.data.storage.StorageItem
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun FileItemRow(
-    file: FileItem,
-    onClick: () -> Unit
+fun FileItem(
+    item: StorageItem,
+    isSelected: Boolean = false,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
+
+    /*
+     * =====================================================
+     * ITEM TYPE
+     * =====================================================
+     */
+
+    val isDirectory =
+        item.isDirectory
+
+
+    /*
+     * =====================================================
+     * ITEM NAME
+     * =====================================================
+     */
+
+    val name =
+        item.name
+
+
+    /*
+     * =====================================================
+     * FILE SIZE
+     * =====================================================
+     *
+     * We only read metadata here.
+     *
+     * No file contents are opened.
+     */
+
+    val sizeText =
+        when (item) {
+
+            is StorageItem.LocalFile -> {
+
+                if (item.file.isDirectory) {
+
+                    null
+
+                } else {
+
+                    formatFileSize(
+                        item.file.length()
+                    )
+                }
+            }
+
+            is StorageItem.Document -> {
+
+                if (item.documentFile.isDirectory) {
+
+                    null
+
+                } else {
+
+                    item.documentFile.length()
+                        .takeIf { it >= 0 }
+                        ?.let { size ->
+                            formatFileSize(size)
+                        }
+                }
+            }
+
+            is StorageItem.DocumentTarget -> {
+                null
+            }
+        }
+
+
+    /*
+     * =====================================================
+     * MODIFIED DATE
+     * =====================================================
+     */
+
+    val modifiedText =
+        when (item) {
+
+            is StorageItem.LocalFile -> {
+
+                formatModifiedDate(
+                    item.file.lastModified()
+                )
+            }
+
+            is StorageItem.Document -> {
+
+                item.documentFile
+                    .lastModified()
+                    .takeIf { it > 0 }
+                    ?.let { timestamp ->
+                        formatModifiedDate(timestamp)
+                    }
+            }
+
+            is StorageItem.DocumentTarget -> {
+                null
+            }
+        }
+
+
+    /*
+     * =====================================================
+     * SECONDARY INFORMATION
+     * =====================================================
+     */
+
+    val secondaryText =
+        when {
+
+            isDirectory && modifiedText != null ->
+                modifiedText
+
+            isDirectory ->
+                "Folder"
+
+            sizeText != null && modifiedText != null ->
+                "$sizeText • $modifiedText"
+
+            sizeText != null ->
+                sizeText
+
+            modifiedText != null ->
+                modifiedText
+
+            else ->
+                "File"
+        }
+
+
+    /*
+     * =====================================================
+     * FILE ROW
+     * =====================================================
+     */
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(
-                horizontal = 16.dp,
-                vertical = 12.dp
-            ),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+
+                /*
+                 * Selected item background.
+                 */
+
+                .background(
+                    if (isSelected) {
+
+                        MaterialTheme
+                            .colorScheme
+                            .secondaryContainer
+
+                    } else {
+
+                        MaterialTheme
+                            .colorScheme
+                            .surface
+                    }
+                )
+
+                /*
+                 * Tap + long press.
+                 */
+
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
+
+                .padding(
+                    horizontal = 16.dp,
+                    vertical = 10.dp
+                ),
+
+        verticalAlignment =
+            Alignment.CenterVertically
     ) {
+
+        /*
+         * =================================================
+         * ICON
+         * =================================================
+         */
 
         Icon(
             imageVector =
-                if (file.isDirectory) {
+                if (isDirectory) {
+
                     Icons.Default.Folder
+
                 } else {
-                    Icons.Default.Description
+
+                    Icons.Default.InsertDriveFile
                 },
+
             contentDescription =
-                if (file.isDirectory) {
+                if (isDirectory) {
+
                     "Folder"
+
                 } else {
+
                     "File"
-                }
+                },
+
+            tint =
+                MaterialTheme
+                    .colorScheme
+                    .primary
         )
 
+
+        /*
+         * =================================================
+         * NAME + DETAILS
+         * =================================================
+         */
+
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 16.dp),
-            verticalArrangement =
-                Arrangement.spacedBy(4.dp)
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(
+                        start = 16.dp
+                    )
         ) {
 
+            /*
+             * File/folder name.
+             */
+
             Text(
-                text = file.name,
-                style = MaterialTheme.typography.bodyLarge
+                text = name,
+
+                maxLines = 1,
+
+                overflow =
+                    TextOverflow.Ellipsis,
+
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyLarge
             )
 
+
             /*
-             * Display metadata only for files.
-             *
-             * Example:
-             * 2.4 MB • Modified 29 Aug 2026
+             * Size + modified date.
              */
-            if (!file.isDirectory) {
 
-                val modified =
-                    formatModifiedDate(
-                        file.lastModified
+            Text(
+                text = secondaryText,
+
+                maxLines = 1,
+
+                overflow =
+                    TextOverflow.Ellipsis,
+
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodySmall,
+
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant,
+
+                modifier =
+                    Modifier.padding(
+                        top = 2.dp
                     )
-
-                Text(
-                    text =
-                        "${formatFileSize(file.size)} • Modified $modified",
-                    style =
-                        MaterialTheme.typography.bodySmall,
-                    color =
-                        MaterialTheme.colorScheme
-                            .onSurfaceVariant
-                )
-            }
+            )
         }
     }
 }
 
+
+/*
+ * =========================================================
+ * FORMAT FILE SIZE
+ * =========================================================
+ */
+
 private fun formatFileSize(
-    size: Long
+    bytes: Long
 ): String {
 
-    if (size <= 0) {
-        return "0 B"
+    if (bytes < 1024) {
+
+        return "$bytes B"
     }
 
-    val units = arrayOf(
-        "B",
-        "KB",
-        "MB",
-        "GB",
-        "TB"
-    )
+    if (bytes < 1024 * 1024) {
 
-    var value = size.toDouble()
-    var index = 0
-
-    while (
-        value >= 1024 &&
-        index < units.lastIndex
-    ) {
-        value /= 1024
-        index++
-    }
-
-    return if (index == 0) {
-        "${value.toLong()} ${units[index]}"
-    } else {
-        "%.1f %s".format(
-            value,
-            units[index]
+        return String.format(
+            Locale.getDefault(),
+            "%.1f KB",
+            bytes / 1024.0
         )
     }
+
+    if (bytes < 1024 * 1024 * 1024) {
+
+        return String.format(
+            Locale.getDefault(),
+            "%.1f MB",
+            bytes /
+                    (1024.0 * 1024.0)
+        )
+    }
+
+    return String.format(
+        Locale.getDefault(),
+        "%.1f GB",
+        bytes /
+                (1024.0 * 1024.0 * 1024.0)
+    )
 }
+
+
+/*
+ * =========================================================
+ * FORMAT MODIFIED DATE
+ * =========================================================
+ */
 
 private fun formatModifiedDate(
     timestamp: Long
 ): String {
 
-    if (timestamp <= 0L) {
-        return ""
-    }
-
-    val formatter =
-        SimpleDateFormat(
-            "dd MMM yyyy",
-            Locale.getDefault()
-        )
-
-    return formatter.format(
+    return SimpleDateFormat(
+        "dd MMM yyyy, HH:mm",
+        Locale.getDefault()
+    ).format(
         Date(timestamp)
     )
 }

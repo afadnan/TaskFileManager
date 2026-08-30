@@ -1,30 +1,51 @@
 package com.afadnan.taskfilemanager.ui.files
 
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,97 +54,477 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.documentfile.provider.DocumentFile
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.afadnan.taskfilemanager.data.storage.FileOperationProgress
+import com.afadnan.taskfilemanager.data.storage.StorageItem
 import com.afadnan.taskfilemanager.viewmodel.FileViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+/*
+ * =============================================================
+ * FILE OPERATION PROGRESS BAR
+ * =============================================================
+ */
+
 @Composable
-fun FilesScreen(
-    viewModel: FileViewModel = viewModel()
+private fun FileOperationProgressBar(
+    progress: FileOperationProgress
 ) {
-    val files by viewModel.files.collectAsState()
-    val currentDirectory by viewModel.currentDirectory.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
 
-    val sortOption by viewModel.sortOption.collectAsState()
-    val sortAscending by viewModel.sortAscending.collectAsState()
-
-    val context = LocalContext.current
-
-    /*
-     * Search text entered by the user.
-     */
-    var searchQuery by remember {
-        mutableStateOf("")
-    }
-
-    /*
-     * Controls the More Options menu.
-     */
-    var showMoreMenu by remember {
-        mutableStateOf(false)
-    }
-
-    /*
-     * Current folder name.
-     *
-     * Example:
-     *
-     * content://.../Documents
-     *
-     * becomes:
-     *
-     * Documents
-     */
-    val directoryName =
-        currentDirectory?.let { uri ->
-
-            DocumentFile
-                .fromTreeUri(
-                    context,
-                    uri
-                )
-                ?.name
-
-        } ?: "Files"
-
-    /*
-     * Filter files according to the search query.
-     *
-     * Search is case-insensitive.
-     */
-    val filteredFiles = remember(
-        files,
-        searchQuery
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = 16.dp,
+                vertical = 8.dp
+            ),
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 2.dp
     ) {
 
-        val query =
-            searchQuery.trim()
+        Column(
+            modifier = Modifier.padding(14.dp)
+        ) {
 
-        if (query.isEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
 
-            files
+                Text(
+                    text = progress.currentFile,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1
+                )
 
-        } else {
+                Spacer(
+                    modifier = Modifier.width(8.dp)
+                )
 
-            files.filter { file ->
+                Text(
+                    text =
+                        if (progress.totalBytes > 0L) {
+                            "${progress.percentage}%"
+                        } else {
+                            "Working…"
+                        },
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
 
-                file.name.contains(
-                    query,
-                    ignoreCase = true
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            if (progress.isIndeterminate) {
+
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+            } else {
+
+                LinearProgressIndicator(
+                    progress = {
+                        progress.percentage
+                            .coerceIn(0, 100)
+                            .toFloat() / 100f
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
     }
+}
+
+
+/*
+ * =============================================================
+ * SEARCH BAR
+ * =============================================================
+ */
+
+@Composable
+private fun FileSearchBar(
+    query: String,
+    resultCount: Int,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit
+) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = 16.dp,
+                vertical = 8.dp
+            )
+    ) {
+
+        OutlinedTextField(
+
+            value = query,
+
+            onValueChange = onQueryChange,
+
+            modifier = Modifier
+                .fillMaxWidth(),
+
+            singleLine = true,
+
+            shape = RoundedCornerShape(16.dp),
+
+            leadingIcon = {
+
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search"
+                )
+            },
+
+            trailingIcon = {
+
+                if (query.isNotEmpty()) {
+
+                    IconButton(
+                        onClick = onClear
+                    ) {
+
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Clear search"
+                        )
+                    }
+                }
+            },
+
+            placeholder = {
+
+                Text(
+                    text = "Search files and folders"
+                )
+            },
+
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Search
+            ),
+
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    // Search is live, so nothing else is required.
+                }
+            )
+        )
+
+        if (query.isNotBlank()) {
+
+            Spacer(
+                modifier = Modifier.height(6.dp)
+            )
+
+            Text(
+                text =
+                    "$resultCount ${
+                        if (resultCount == 1) {
+                            "result"
+                        } else {
+                            "results"
+                        }
+                    }",
+
+                modifier = Modifier.padding(
+                    horizontal = 4.dp
+                ),
+
+                style = MaterialTheme.typography.labelMedium,
+
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+
+/*
+ * =============================================================
+ * CURRENT DIRECTORY HEADER
+ * =============================================================
+ */
+
+@Composable
+private fun CurrentDirectoryHeader(
+    directoryName: String
+) {
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = 16.dp,
+                vertical = 6.dp
+            ),
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 1.dp
+    ) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 16.dp,
+                    vertical = 12.dp
+                ),
+
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
+
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+
+                    Icon(
+                        imageVector =
+                            Icons.Default.Folder,
+
+                        contentDescription = null,
+
+                        tint =
+                            MaterialTheme
+                                .colorScheme
+                                .onPrimaryContainer
+                    )
+                }
+            }
+
+            Spacer(
+                modifier = Modifier.width(12.dp)
+            )
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+
+                Text(
+                    text = "Current folder",
+                    style =
+                        MaterialTheme
+                            .typography
+                            .labelMedium,
+
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                )
+
+                Spacer(
+                    modifier = Modifier.height(2.dp)
+                )
+
+                Text(
+                    text = directoryName,
+                    style =
+                        MaterialTheme
+                            .typography
+                            .titleMedium,
+
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+
+/*
+ * =============================================================
+ * EMPTY SEARCH RESULT
+ * =============================================================
+ */
+
+@Composable
+private fun EmptySearchResult(
+    query: String,
+    onClearSearch: () -> Unit
+) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+
+        verticalArrangement =
+            Arrangement.Center
+    ) {
+
+        Surface(
+            modifier = Modifier.size(72.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+
+            Box(
+                contentAlignment = Alignment.Center
+            ) {
+
+                Icon(
+                    imageVector =
+                        Icons.Default.Search,
+
+                    contentDescription = null,
+
+                    modifier = Modifier.size(32.dp),
+
+                    tint =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(
+            modifier = Modifier.height(18.dp)
+        )
+
+        Text(
+            text = "No files found",
+            style =
+                MaterialTheme
+                    .typography
+                    .titleLarge
+        )
+
+        Spacer(
+            modifier = Modifier.height(6.dp)
+        )
+
+        Text(
+            text =
+                "No files or folders match \"$query\".",
+
+            style =
+                MaterialTheme
+                    .typography
+                    .bodyMedium,
+
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .onSurfaceVariant
+        )
+
+        Spacer(
+            modifier = Modifier.height(16.dp)
+        )
+
+        TextButton(
+            onClick = onClearSearch
+        ) {
+
+            Text(
+                text = "Clear search"
+            )
+        }
+    }
+}
+
+
+/*
+ * =============================================================
+ * FILES SCREEN
+ * =============================================================
+ */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilesScreen(
+    fileViewModel: FileViewModel
+) {
 
     /*
-     * SAF folder picker.
+     * =========================================================
+     * STATE
+     * =========================================================
      */
-    val folderPicker =
+
+    val currentDirectory by
+    fileViewModel.currentDirectory.collectAsState()
+
+    val operationProgress by
+    fileViewModel.operationProgress.collectAsState()
+
+    val isOperationRunning by
+    fileViewModel.isOperationRunning.collectAsState()
+
+    val items by
+    fileViewModel.items.collectAsState()
+
+    val filteredItems by
+    fileViewModel.filteredItems.collectAsState()
+
+    val selectedItems by
+    fileViewModel.selectedItems.collectAsState()
+
+    val isLoading by
+    fileViewModel.isLoading.collectAsState()
+
+    val error by
+    fileViewModel.error.collectAsState()
+
+    val clipboardItems by
+    fileViewModel.clipboardItems.collectAsState()
+
+    val sortState by
+    fileViewModel.sortState.collectAsState()
+
+    val searchQuery by
+    fileViewModel.searchQuery.collectAsState()
+
+
+    /*
+     * =========================================================
+     * LOCAL UI STATE
+     * =========================================================
+     */
+
+    var showDeleteDialog by remember {
+        mutableStateOf(false)
+    }
+
+    var showRenameDialog by remember {
+        mutableStateOf(false)
+    }
+
+    var showSortMenu by remember {
+        mutableStateOf(false)
+    }
+
+    var isSearchMode by remember {
+        mutableStateOf(false)
+    }
+
+
+    /*
+     * =========================================================
+     * FOLDER PICKER
+     * =========================================================
+     */
+
+    val folderPickerLauncher =
         rememberLauncherForActivityResult(
             contract =
                 ActivityResultContracts.OpenDocumentTree()
@@ -131,549 +532,1191 @@ fun FilesScreen(
 
             if (uri != null) {
 
-                viewModel.setRootDirectory(uri)
-
-                /*
-                 * Clear an old search when selecting
-                 * another storage location.
-                 */
-                searchQuery = ""
+                fileViewModel.saveSelectedFolder(
+                    uri = uri,
+                    flags =
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
             }
         }
 
-    /*
-     * No folder selected yet.
-     */
-    if (currentDirectory == null) {
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment =
-                Alignment.CenterHorizontally,
-            verticalArrangement =
-                Arrangement.Center
-        ) {
-
-            Text(
-                text = "File Manager",
-                style =
-                    MaterialTheme.typography.headlineSmall
-            )
-
-            Text(
-                text =
-                    "Choose a folder to start browsing",
-                modifier =
-                    Modifier.padding(
-                        top = 8.dp,
-                        bottom = 24.dp
-                    )
-            )
-
-            Button(
-                onClick = {
-                    folderPicker.launch(null)
-                }
-            ) {
-
-                Text("Choose Folder")
-            }
-        }
-
-        return
-    }
 
     /*
-     * Main file browser.
+     * =========================================================
+     * SCREEN
+     * =========================================================
      */
+
     Scaffold(
+
+        /*
+         * =====================================================
+         * TOP BAR
+         * =====================================================
+         */
 
         topBar = {
 
-            CenterAlignedTopAppBar(
+            TopAppBar(
 
                 title = {
-                    Text(
-                        text = directoryName
-                    )
+
+                    if (selectedItems.isNotEmpty()) {
+
+                        Text(
+                            text =
+                                "${selectedItems.size} selected"
+                        )
+
+                    } else {
+
+                        Text(
+                            text =
+                                currentDirectory
+                                    ?.documentFile
+                                    ?.name
+                                    ?: "Files"
+                        )
+                    }
                 },
+
+
+                /*
+                 * =================================================
+                 * NAVIGATION
+                 * =================================================
+                 */
 
                 navigationIcon = {
 
-                    if (viewModel.canGoBack()) {
+                    when {
 
-                        IconButton(
-                            onClick = {
+                        selectedItems.isNotEmpty() -> {
 
-                                searchQuery = ""
+                            IconButton(
+                                onClick = {
+                                    fileViewModel
+                                        .clearSelection()
+                                }
+                            ) {
 
-                                viewModel.goBack()
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.ArrowBack,
+
+                                    contentDescription =
+                                        "Clear selection"
+                                )
                             }
-                        ) {
+                        }
 
-                            Icon(
-                                imageVector =
-                                    Icons.Default.ArrowBack,
-                                contentDescription =
-                                    "Go back"
-                            )
+                        currentDirectory != null -> {
+
+                            IconButton(
+                                onClick = {
+
+                                    isSearchMode = false
+
+                                    fileViewModel.clearSearch()
+
+                                    fileViewModel.goBack()
+                                }
+                            ) {
+
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.ArrowBack,
+
+                                    contentDescription =
+                                        "Back"
+                                )
+                            }
                         }
                     }
                 },
+
+
+                /*
+                 * =================================================
+                 * ACTIONS
+                 * =================================================
+                 */
 
                 actions = {
 
-                    /*
-                     * More options button.
-                     */
-                    IconButton(
-                        onClick = {
-                            showMoreMenu = true
-                        }
-                    ) {
+                    if (!isOperationRunning) {
 
-                        Icon(
-                            imageVector =
-                                Icons.Default.MoreVert,
-                            contentDescription =
-                                "More options"
+                        /*
+                         * =================================================
+                         * SELECTION MODE
+                         * =================================================
+                         */
+
+                        if (selectedItems.isNotEmpty()) {
+
+                            /*
+                             * COPY
+                             */
+
+                            IconButton(
+                                onClick = {
+                                    fileViewModel
+                                        .copySelected()
+                                }
+                            ) {
+
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.ContentCopy,
+
+                                    contentDescription =
+                                        "Copy selected items"
+                                )
+                            }
+
+
+                            /*
+                             * MOVE
+                             */
+
+                            IconButton(
+                                onClick = {
+                                    fileViewModel
+                                        .moveSelected()
+                                }
+                            ) {
+
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.ContentCut,
+
+                                    contentDescription =
+                                        "Move selected items"
+                                )
+                            }
+
+
+                            /*
+                             * RENAME
+                             */
+
+                            if (
+                                selectedItems.size == 1
+                            ) {
+
+                                IconButton(
+                                    onClick = {
+                                        showRenameDialog =
+                                            true
+                                    }
+                                ) {
+
+                                    Icon(
+                                        imageVector =
+                                            Icons.Default.Edit,
+
+                                        contentDescription =
+                                            "Rename"
+                                    )
+                                }
+                            }
+
+
+                            /*
+                             * DELETE
+                             */
+
+                            IconButton(
+                                onClick = {
+                                    showDeleteDialog =
+                                        true
+                                }
+                            ) {
+
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.Delete,
+
+                                    contentDescription =
+                                        "Delete selected items"
+                                )
+                            }
+
+                        } else {
+
+                            /*
+                             * =================================================
+                             * NORMAL MODE
+                             * =================================================
+                             */
+
+                            /*
+                             * SEARCH
+                             */
+
+                            IconButton(
+                                onClick = {
+
+                                    isSearchMode = true
+                                }
+                            ) {
+
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.Search,
+
+                                    contentDescription =
+                                        "Search files"
+                                )
+                            }
+
+
+                            /*
+                             * PASTE
+                             */
+
+                            if (
+                                clipboardItems.isNotEmpty()
+                            ) {
+
+                                IconButton(
+                                    onClick = {
+                                        fileViewModel
+                                            .paste()
+                                    }
+                                ) {
+
+                                    Icon(
+                                        imageVector =
+                                            Icons.Default.ContentPaste,
+
+                                        contentDescription =
+                                            "Paste"
+                                    )
+                                }
+                            }
+
+
+                            /*
+                             * REFRESH
+                             */
+
+                            IconButton(
+                                onClick = {
+                                    fileViewModel.refresh()
+                                }
+                            ) {
+
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.Refresh,
+
+                                    contentDescription =
+                                        "Refresh"
+                                )
+                            }
+
+
+                            /*
+                             * =================================================
+                             * SORT MENU
+                             * =================================================
+                             */
+
+                            Box {
+
+                                IconButton(
+                                    onClick = {
+                                        showSortMenu = true
+                                    }
+                                ) {
+
+                                    Icon(
+                                        imageVector =
+                                            Icons.Default.MoreVert,
+
+                                        contentDescription =
+                                            "Sort files"
+                                    )
+                                }
+
+
+                                DropdownMenu(
+
+                                    expanded =
+                                        showSortMenu,
+
+                                    onDismissRequest = {
+                                        showSortMenu = false
+                                    }
+                                ) {
+
+                                    /*
+                                     * NAME A-Z
+                                     */
+
+                                    DropdownMenuItem(
+
+                                        text = {
+                                            Text("Name: A–Z")
+                                        },
+
+                                        trailingIcon = {
+
+                                            if (
+                                                sortState.field ==
+                                                FileViewModel.SortField.NAME &&
+                                                sortState.direction ==
+                                                FileViewModel.SortDirection.ASCENDING
+                                            ) {
+                                                Text("✓")
+                                            }
+                                        },
+
+                                        onClick = {
+
+                                            showSortMenu = false
+
+                                            fileViewModel
+                                                .setSortDirection(
+                                                    FileViewModel
+                                                        .SortDirection
+                                                        .ASCENDING
+                                                )
+
+                                            fileViewModel
+                                                .setSortField(
+                                                    FileViewModel
+                                                        .SortField
+                                                        .NAME
+                                                )
+                                        }
+                                    )
+
+
+                                    /*
+                                     * NAME Z-A
+                                     */
+
+                                    DropdownMenuItem(
+
+                                        text = {
+                                            Text("Name: Z–A")
+                                        },
+
+                                        trailingIcon = {
+
+                                            if (
+                                                sortState.field ==
+                                                FileViewModel.SortField.NAME &&
+                                                sortState.direction ==
+                                                FileViewModel.SortDirection.DESCENDING
+                                            ) {
+                                                Text("✓")
+                                            }
+                                        },
+
+                                        onClick = {
+
+                                            showSortMenu = false
+
+                                            fileViewModel
+                                                .setSortDirection(
+                                                    FileViewModel
+                                                        .SortDirection
+                                                        .DESCENDING
+                                                )
+
+                                            fileViewModel
+                                                .setSortField(
+                                                    FileViewModel
+                                                        .SortField
+                                                        .NAME
+                                                )
+                                        }
+                                    )
+
+
+                                    /*
+                                     * SIZE SMALL-LARGE
+                                     */
+
+                                    DropdownMenuItem(
+
+                                        text = {
+                                            Text(
+                                                "Size: Small → Large"
+                                            )
+                                        },
+
+                                        trailingIcon = {
+
+                                            if (
+                                                sortState.field ==
+                                                FileViewModel.SortField.SIZE &&
+                                                sortState.direction ==
+                                                FileViewModel.SortDirection.ASCENDING
+                                            ) {
+                                                Text("✓")
+                                            }
+                                        },
+
+                                        onClick = {
+
+                                            showSortMenu = false
+
+                                            fileViewModel
+                                                .setSortDirection(
+                                                    FileViewModel
+                                                        .SortDirection
+                                                        .ASCENDING
+                                                )
+
+                                            fileViewModel
+                                                .setSortField(
+                                                    FileViewModel
+                                                        .SortField
+                                                        .SIZE
+                                                )
+                                        }
+                                    )
+
+
+                                    /*
+                                     * SIZE LARGE-SMALL
+                                     */
+
+                                    DropdownMenuItem(
+
+                                        text = {
+                                            Text(
+                                                "Size: Large → Small"
+                                            )
+                                        },
+
+                                        trailingIcon = {
+
+                                            if (
+                                                sortState.field ==
+                                                FileViewModel.SortField.SIZE &&
+                                                sortState.direction ==
+                                                FileViewModel.SortDirection.DESCENDING
+                                            ) {
+                                                Text("✓")
+                                            }
+                                        },
+
+                                        onClick = {
+
+                                            showSortMenu = false
+
+                                            fileViewModel
+                                                .setSortDirection(
+                                                    FileViewModel
+                                                        .SortDirection
+                                                        .DESCENDING
+                                                )
+
+                                            fileViewModel
+                                                .setSortField(
+                                                    FileViewModel
+                                                        .SortField
+                                                        .SIZE
+                                                )
+                                        }
+                                    )
+
+
+                                    /*
+                                     * DATE NEWEST
+                                     */
+
+                                    DropdownMenuItem(
+
+                                        text = {
+                                            Text(
+                                                "Date: Newest first"
+                                            )
+                                        },
+
+                                        trailingIcon = {
+
+                                            if (
+                                                sortState.field ==
+                                                FileViewModel.SortField.DATE_MODIFIED &&
+                                                sortState.direction ==
+                                                FileViewModel.SortDirection.DESCENDING
+                                            ) {
+                                                Text("✓")
+                                            }
+                                        },
+
+                                        onClick = {
+
+                                            showSortMenu = false
+
+                                            fileViewModel
+                                                .setSortDirection(
+                                                    FileViewModel
+                                                        .SortDirection
+                                                        .DESCENDING
+                                                )
+
+                                            fileViewModel
+                                                .setSortField(
+                                                    FileViewModel
+                                                        .SortField
+                                                        .DATE_MODIFIED
+                                                )
+                                        }
+                                    )
+
+
+                                    /*
+                                     * DATE OLDEST
+                                     */
+
+                                    DropdownMenuItem(
+
+                                        text = {
+                                            Text(
+                                                "Date: Oldest first"
+                                            )
+                                        },
+
+                                        trailingIcon = {
+
+                                            if (
+                                                sortState.field ==
+                                                FileViewModel.SortField.DATE_MODIFIED &&
+                                                sortState.direction ==
+                                                FileViewModel.SortDirection.ASCENDING
+                                            ) {
+                                                Text("✓")
+                                            }
+                                        },
+
+                                        onClick = {
+
+                                            showSortMenu = false
+
+                                            fileViewModel
+                                                .setSortDirection(
+                                                    FileViewModel
+                                                        .SortDirection
+                                                        .ASCENDING
+                                                )
+
+                                            fileViewModel
+                                                .setSortField(
+                                                    FileViewModel
+                                                        .SortField
+                                                        .DATE_MODIFIED
+                                                )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+        },
+
+
+        /*
+         * =========================================================
+         * CONTENT
+         * =========================================================
+         */
+
+        content = { paddingValues ->
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+
+                when {
+
+                    /*
+                     * =================================================
+                     * INITIAL LOADING
+                     * =================================================
+                     */
+
+                    isLoading &&
+                            currentDirectory == null -> {
+
+                        CircularProgressIndicator(
+                            modifier =
+                                Modifier.align(
+                                    Alignment.Center
+                                )
                         )
                     }
 
+
                     /*
-                     * Sort / Refresh menu.
+                     * =================================================
+                     * NO STORAGE
+                     * =================================================
                      */
-                    DropdownMenu(
-                        expanded = showMoreMenu,
-                        onDismissRequest = {
-                            showMoreMenu = false
-                        }
-                    ) {
 
-                        /*
-                         * Refresh.
-                         */
-                        DropdownMenuItem(
+                    currentDirectory == null -> {
 
-                            text = {
-                                Text("Refresh")
-                            },
+                        FolderSelectionContent(
+                            onSelectFolder = {
 
-                            onClick = {
-
-                                showMoreMenu = false
-
-                                /*
-                                 * Clear search so the refreshed
-                                 * directory is immediately visible.
-                                 */
-                                searchQuery = ""
-
-                                viewModel.refresh()
-                            }
-                        )
-
-                        HorizontalDivider()
-
-                        /*
-                         * Sort section title.
-                         */
-                        DropdownMenuItem(
-
-                            text = {
-                                Text(
-                                    text = "Sort by",
-                                    style =
-                                        MaterialTheme
-                                            .typography
-                                            .labelLarge
-                                )
-                            },
-
-                            onClick = {
-                                /*
-                                 * This item is only a section
-                                 * label, so no action is needed.
-                                 */
-                            },
-
-                            enabled = false
-                        )
-
-                        /*
-                         * Sort by Name.
-                         */
-                        DropdownMenuItem(
-
-                            text = {
-                                Text(
-                                    text =
-                                        if (
-                                            sortOption ==
-                                            FileViewModel
-                                                .SortOption
-                                                .NAME
-                                        ) {
-                                            if (sortAscending) {
-                                                "✓ Name (A → Z)"
-                                            } else {
-                                                "✓ Name (Z → A)"
-                                            }
-                                        } else {
-                                            "Name"
-                                        }
-                                )
-                            },
-
-                            onClick = {
-
-                                viewModel.setSortOption(
-                                    FileViewModel
-                                        .SortOption
-                                        .NAME
-                                )
-
-                                showMoreMenu = false
-                            }
-                        )
-
-                        /*
-                         * Sort by modified date.
-                         */
-                        DropdownMenuItem(
-
-                            text = {
-                                Text(
-                                    text =
-                                        if (
-                                            sortOption ==
-                                            FileViewModel
-                                                .SortOption
-                                                .DATE_MODIFIED
-                                        ) {
-                                            if (sortAscending) {
-                                                "✓ Date modified (Old → New)"
-                                            } else {
-                                                "✓ Date modified (New → Old)"
-                                            }
-                                        } else {
-                                            "Date modified"
-                                        }
-                                )
-                            },
-
-                            onClick = {
-
-                                viewModel.setSortOption(
-                                    FileViewModel
-                                        .SortOption
-                                        .DATE_MODIFIED
-                                )
-
-                                showMoreMenu = false
-                            }
-                        )
-
-                        /*
-                         * Sort by file size.
-                         */
-                        DropdownMenuItem(
-
-                            text = {
-                                Text(
-                                    text =
-                                        if (
-                                            sortOption ==
-                                            FileViewModel
-                                                .SortOption
-                                                .SIZE
-                                        ) {
-                                            if (sortAscending) {
-                                                "✓ Size (Small → Large)"
-                                            } else {
-                                                "✓ Size (Large → Small)"
-                                            }
-                                        } else {
-                                            "Size"
-                                        }
-                                )
-                            },
-
-                            onClick = {
-
-                                viewModel.setSortOption(
-                                    FileViewModel
-                                        .SortOption
-                                        .SIZE
-                                )
-
-                                showMoreMenu = false
-                            }
-                        )
-
-                        HorizontalDivider()
-
-                        /*
-                         * Sort direction.
-                         */
-                        DropdownMenuItem(
-
-                            text = {
-                                Text(
-                                    text =
-                                        if (sortAscending) {
-                                            "✓ Ascending"
-                                        } else {
-                                            "Ascending"
-                                        }
-                                )
-                            },
-
-                            onClick = {
-
-                                viewModel.setSortAscending(
-                                    true
-                                )
-
-                                showMoreMenu = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-
-                            text = {
-                                Text(
-                                    text =
-                                        if (!sortAscending) {
-                                            "✓ Descending"
-                                        } else {
-                                            "Descending"
-                                        }
-                                )
-                            },
-
-                            onClick = {
-
-                                viewModel.setSortAscending(
-                                    false
-                                )
-
-                                showMoreMenu = false
+                                folderPickerLauncher
+                                    .launch(null)
                             }
                         )
                     }
+
+
+                    /*
+                     * =================================================
+                     * DIRECTORY CONTENT
+                     * =================================================
+                     */
+
+                    else -> {
+
+                        Column(
+                            modifier =
+                                Modifier.fillMaxSize()
+                        ) {
+
+                            /*
+                             * =================================================
+                             * SEARCH BAR
+                             * =================================================
+                             */
+
+                            if (
+                                isSearchMode &&
+                                selectedItems.isEmpty()
+                            ) {
+
+                                FileSearchBar(
+
+                                    query =
+                                        searchQuery,
+
+                                    resultCount =
+                                        filteredItems.size,
+
+                                    onQueryChange = { query ->
+
+                                        fileViewModel
+                                            .setSearchQuery(
+                                                query
+                                            )
+                                    },
+
+                                    onClear = {
+
+                                        fileViewModel
+                                            .clearSearch()
+                                    }
+                                )
+                            }
+
+
+                            /*
+                             * =================================================
+                             * CURRENT FOLDER HEADER
+                             * =================================================
+                             */
+
+                            if (!isSearchMode) {
+
+                                CurrentDirectoryHeader(
+
+                                    directoryName =
+                                        currentDirectory
+                                            ?.documentFile
+                                            ?.name
+                                            ?: "Files"
+                                )
+                            }
+
+
+                            /*
+                             * =================================================
+                             * OPERATION PROGRESS
+                             * =================================================
+                             */
+
+                            if (
+                                isOperationRunning &&
+                                operationProgress != null
+                            ) {
+
+                                FileOperationProgressBar(
+                                    progress =
+                                        operationProgress!!
+                                )
+                            }
+
+
+                            /*
+                             * =================================================
+                             * SEARCH RESULTS
+                             * =================================================
+                             */
+
+                            if (
+                                isSearchMode &&
+                                searchQuery.isNotBlank() &&
+                                filteredItems.isEmpty()
+                            ) {
+
+                                EmptySearchResult(
+
+                                    query =
+                                        searchQuery,
+
+                                    onClearSearch = {
+
+                                        fileViewModel
+                                            .clearSearch()
+                                    }
+                                )
+
+                            } else {
+
+                                /*
+                                 * =================================================
+                                 * FILE LIST
+                                 * =================================================
+                                 */
+
+                                FileList(
+
+                                    items =
+                                        if (
+                                            isSearchMode
+                                        ) {
+                                            filteredItems
+                                        } else {
+                                            items
+                                        },
+
+                                    isLoading =
+                                        isLoading,
+
+                                    selectedItems =
+                                        selectedItems,
+
+
+                                    /*
+                                     * =================================================
+                                     * ITEM CLICK
+                                     * =================================================
+                                     */
+
+                                    onItemClick = { item ->
+
+                                        if (
+                                            isOperationRunning
+                                        ) {
+                                            return@FileList
+                                        }
+
+
+                                        /*
+                                         * Selection mode.
+                                         */
+
+                                        if (
+                                            selectedItems.isNotEmpty()
+                                        ) {
+
+                                            fileViewModel
+                                                .toggleSelection(
+                                                    item
+                                                )
+
+                                        } else {
+
+                                            /*
+                                             * Normal mode.
+                                             */
+
+                                            if (
+                                                item is StorageItem.Document &&
+                                                item.documentFile.isDirectory
+                                            ) {
+
+                                                isSearchMode =
+                                                    false
+
+                                                fileViewModel
+                                                    .clearSearch()
+
+                                                fileViewModel
+                                                    .openDirectory(
+                                                        item
+                                                    )
+                                            }
+                                        }
+                                    },
+
+
+                                    /*
+                                     * =================================================
+                                     * ITEM LONG CLICK
+                                     * =================================================
+                                     */
+
+                                    onItemLongClick = { item ->
+
+                                        if (
+                                            isOperationRunning
+                                        ) {
+                                            return@FileList
+                                        }
+
+                                        fileViewModel
+                                            .toggleSelection(
+                                                item
+                                            )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+
+                /*
+                 * =========================================================
+                 * ERROR
+                 * =========================================================
+                 */
+
+                if (error != null) {
+
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(16.dp),
+
+                        shape =
+                            RoundedCornerShape(12.dp),
+
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .errorContainer
+                    ) {
+
+                        Row(
+                            modifier = Modifier.padding(
+                                horizontal = 16.dp,
+                                vertical = 12.dp
+                            ),
+
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+
+                            Text(
+                                text =
+                                    error ?: "",
+
+                                modifier =
+                                    Modifier.weight(1f),
+
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onErrorContainer
+                            )
+
+                            Spacer(
+                                modifier =
+                                    Modifier.width(8.dp)
+                            )
+
+                            TextButton(
+                                onClick = {
+                                    fileViewModel
+                                        .clearError()
+                                }
+                            ) {
+
+                                Text(
+                                    text = "Dismiss"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+
+    /*
+     * =========================================================
+     * DELETE CONFIRMATION
+     * =========================================================
+     */
+
+    if (showDeleteDialog) {
+
+        AlertDialog(
+
+            onDismissRequest = {
+
+                showDeleteDialog = false
+            },
+
+            title = {
+
+                Text(
+                    text =
+                        "Delete selected items?"
+                )
+            },
+
+            text = {
+
+                Text(
+                    text =
+                        if (
+                            selectedItems.size == 1
+                        ) {
+
+                            "Are you sure you want to permanently delete this item?"
+
+                        } else {
+
+                            "Are you sure you want to permanently delete " +
+                                    "${selectedItems.size} items?"
+                        }
+                )
+            },
+
+            confirmButton = {
+
+                TextButton(
+                    onClick = {
+
+                        showDeleteDialog = false
+
+                        fileViewModel
+                            .deleteSelected()
+                    }
+                ) {
+
+                    Text(
+                        text = "Delete",
+
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .error
+                    )
+                }
+            },
+
+            dismissButton = {
+
+                TextButton(
+                    onClick = {
+
+                        showDeleteDialog = false
+                    }
+                ) {
+
+                    Text(
+                        text = "Cancel"
+                    )
+                }
+            }
+        )
+    }
+
+
+    /*
+     * =========================================================
+     * RENAME DIALOG
+     * =========================================================
+     */
+
+    if (
+        showRenameDialog &&
+        selectedItems.size == 1
+    ) {
+
+        val selectedItem =
+            selectedItems.firstOrNull()
+
+        if (selectedItem != null) {
+
+            val currentName: String =
+                when (selectedItem) {
+
+                    is StorageItem.Document -> {
+
+                        selectedItem
+                            .documentFile
+                            .name
+                            ?: ""
+                    }
+
+                    is StorageItem.LocalFile -> {
+
+                        selectedItem.file.name
+                    }
+
+                    is StorageItem.DocumentTarget -> {
+
+                        selectedItem.name
+                            ?: ""
+                    }
+                }
+
+
+            RenameDialog(
+
+                currentName =
+                    currentName,
+
+                onDismiss = {
+
+                    showRenameDialog =
+                        false
+                },
+
+                onRename = { newName ->
+
+                    showRenameDialog =
+                        false
+
+                    fileViewModel
+                        .renameSelected(
+                            newName
+                        )
                 }
             )
         }
+    }
+}
 
-    ) { paddingValues ->
 
-        Column(
-            modifier = Modifier
+/*
+ * =============================================================
+ * FOLDER SELECTION CONTENT
+ * =============================================================
+ */
+
+@Composable
+private fun FolderSelectionContent(
+    onSelectFolder: () -> Unit
+) {
+
+    Column(
+        modifier =
+            Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(32.dp),
+
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+
+        verticalArrangement =
+            Arrangement.Center
+    ) {
+
+        Surface(
+            modifier = Modifier.size(80.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.primaryContainer
         ) {
 
-            /*
-             * Search field.
-             */
-            OutlinedTextField(
-
-                value = searchQuery,
-
-                onValueChange = {
-                    searchQuery = it
-                },
-
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = 16.dp,
-                        vertical = 8.dp
-                    ),
-
-                placeholder = {
-                    Text("Search files")
-                },
-
-                leadingIcon = {
-
-                    Icon(
-                        imageVector =
-                            Icons.Default.Search,
-                        contentDescription =
-                            "Search"
-                    )
-                },
-
-                trailingIcon = {
-
-                    if (searchQuery.isNotEmpty()) {
-
-                        IconButton(
-                            onClick = {
-                                searchQuery = ""
-                            }
-                        ) {
-
-                            Icon(
-                                imageVector =
-                                    Icons.Default.Clear,
-                                contentDescription =
-                                    "Clear search"
-                            )
-                        }
-                    }
-                },
-
-                singleLine = true
-            )
-
-            /*
-             * Loading state.
-             */
-            if (isLoading) {
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                    horizontalAlignment =
-                        Alignment.CenterHorizontally,
-                    verticalArrangement =
-                        Arrangement.Center
-                ) {
-
-                    CircularProgressIndicator()
-
-                    Text(
-                        text = "Loading files...",
-                        modifier =
-                            Modifier.padding(
-                                top = 12.dp
-                            )
-                    )
-                }
-
-                /*
-                 * Error state.
-                 */
-            } else if (error != null) {
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f)
-                        .padding(24.dp),
-                    horizontalAlignment =
-                        Alignment.CenterHorizontally,
-                    verticalArrangement =
-                        Arrangement.Center
-                ) {
-
-                    Text(
-                        text =
-                            error
-                                ?: "Unable to load files.",
-                        style =
-                            MaterialTheme.typography.bodyLarge
-                    )
-
-                    Button(
-                        onClick = {
-                            folderPicker.launch(null)
-                        },
-                        modifier =
-                            Modifier.padding(
-                                top = 16.dp
-                            )
-                    ) {
-
-                        Text("Choose Another Folder")
-                    }
-                }
-
-                /*
-                 * Search returned no results.
-                 */
-            } else if (
-                searchQuery.isNotBlank() &&
-                filteredFiles.isEmpty()
+            Box(
+                contentAlignment = Alignment.Center
             ) {
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f)
-                        .padding(24.dp),
-                    horizontalAlignment =
-                        Alignment.CenterHorizontally,
-                    verticalArrangement =
-                        Arrangement.Center
-                ) {
+                Icon(
+                    imageVector =
+                        Icons.Default.Storage,
 
-                    Icon(
-                        imageVector =
-                            Icons.Default.Search,
-                        contentDescription = null
-                    )
+                    contentDescription = null,
 
-                    Text(
-                        text = "No files found",
-                        style =
-                            MaterialTheme.typography
-                                .titleMedium,
-                        modifier =
-                            Modifier.padding(
-                                top = 12.dp
-                            )
-                    )
+                    modifier =
+                        Modifier.size(36.dp),
 
-                    Text(
-                        text =
-                            "No files match \"$searchQuery\"",
-                        style =
-                            MaterialTheme.typography
-                                .bodyMedium,
-                        modifier =
-                            Modifier.padding(
-                                top = 4.dp
-                            )
-                    )
-                }
-
-                /*
-                 * Normal file list / filtered file list.
-                 */
-            } else {
-
-                FileList(
-                    files = filteredFiles,
-
-                    onFileClick = { file ->
-
-                        if (file.isDirectory) {
-
-                            /*
-                             * Clear search before entering
-                             * another directory.
-                             */
-                            searchQuery = ""
-
-                            viewModel.openDirectory(
-                                uri = file.uri
-                            )
-                        }
-
-                        /*
-                         * Opening individual files will
-                         * be implemented later.
-                         */
-                    }
+                    tint =
+                        MaterialTheme
+                            .colorScheme
+                            .onPrimaryContainer
                 )
             }
+        }
+
+
+        Spacer(
+            modifier = Modifier.height(20.dp)
+        )
+
+
+        Text(
+            text =
+                "No storage folder selected",
+
+            style =
+                MaterialTheme
+                    .typography
+                    .headlineSmall
+        )
+
+
+        Spacer(
+            modifier = Modifier.height(8.dp)
+        )
+
+
+        Text(
+            text =
+                "Select a folder to browse and manage your files.",
+
+            style =
+                MaterialTheme
+                    .typography
+                    .bodyMedium,
+
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .onSurfaceVariant
+        )
+
+
+        Spacer(
+            modifier = Modifier.height(24.dp)
+        )
+
+
+        Button(
+            onClick =
+                onSelectFolder,
+
+            shape =
+                RoundedCornerShape(14.dp)
+        ) {
+
+            Text(
+                text =
+                    "Select Folder"
+            )
         }
     }
 }
